@@ -10,6 +10,9 @@
         .header { background: #2563eb; color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; }
         .api-box { background: #eff6ff; padding: 10px 15px; border-bottom: 1px solid #bfdbfe; display: flex; gap: 8px; align-items: center; font-size: 13px; }
         .api-box input { flex: 1; padding: 6px 10px; border: 1px solid #93c5fd; border-radius: 6px; font-size: 13px; outline: none; }
+        .level-box { background: #f8fafc; padding: 10px 15px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 12px; align-items: center; font-size: 13px; color: #334155; }
+        .level-box label { font-weight: 600; white-space: nowrap; }
+        .level-box select { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #1f2937; font-size: 13px; cursor: pointer; }
         .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
         .message { padding: 12px 15px; border-radius: 15px; max-width: 82%; line-height: 1.5; font-size: 15px; word-break: keep-all; }
         .ai-msg { background: #f3f4f6; align-self: flex-start; border-bottom-left-radius: 2px; color: #1f2937; }
@@ -31,6 +34,14 @@
             <span>🔑 API 키:</span>
             <input type="password" id="apiKeyInput" placeholder="AIza... 키를 입력하세요">
         </div>
+        <div class="level-box">
+            <label for="difficultySelect">학습 난이도</label>
+            <select id="difficultySelect">
+                <option value="beginner">초급 (왕초보)</option>
+                <option value="intermediate" selected>중급 (일상회화)</option>
+                <option value="advanced">고급 (심화토론)</option>
+            </select>
+        </div>
         <div class="chat-box" id="chatBox">
             <div class="message ai-msg">
                 안녕하세요! API 키를 넣고 영어로 말을 걸어보세요!<br><br>
@@ -46,16 +57,30 @@
     </div>
 
     <script>
-        function speak(text) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.95;
-            window.speechSynthesis.speak(utterance);
+      function speak(text) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+
+        // 브라우저에서 목소리 목록 가져오기
+        const voices = window.speechSynthesis.getVoices();
+        
+        // 정상적인 미국 영어 성인 목소리 찾기 (괴물/변조 목소리 배제)
+        const englishVoice = voices.find(v => v.lang === 'en-US' && (v.name.includes('Samantha') || v.name.includes('Alex') || v.name.includes('Ava') || v.name.includes('Natural') || v.name.includes('Google US English'))) ||
+                             voices.find(v => v.lang === 'en-US' && !v.name.includes('Bad') && !v.name.includes('Zarvox') && !v.name.includes('Whisper') && !v.name.includes('Albert'));
+
+        if (englishVoice) {
+            utterance.voice = englishVoice;
         }
+
+        window.speechSynthesis.speak(utterance);
+    }
 
         document.addEventListener('DOMContentLoaded', () => {
             const apiKeyInput = document.getElementById('apiKeyInput');
+            const difficultySelect = document.getElementById('difficultySelect');
             const userInput = document.getElementById('userInput');
             const sendBtn = document.getElementById('sendBtn');
             const micBtn = document.getElementById('micBtn');
@@ -100,12 +125,19 @@
                 chatBox.scrollTop = chatBox.scrollHeight;
 
                 try {
-                    const prompt = `당신은 친절한 일상 영어 회화 튜터입니다. 사용자가 "${text}"라고 말했습니다. 
+                                        const levelInstructions = {
+                                                beginner: '초급(왕초보) 학습자에게 맞춰 답하세요. 중학교 1학년 수준의 아주 쉬운 기초 단어만 사용하고, 영어 답변은 1~2개의 짧고 단순한 문장으로 작성하세요. 사용자가 답하기 쉬운 기초 질문은 정확히 하나만 하세요. 영어 답변 바로 아래에 친절하고 자연스러운 한국어 해석을 반드시 제공하세요.',
+                                                intermediate: '중급(일상회화) 학습자에게 맞춰 답하세요. 자연스러운 일상 회화 표현을 사용해 영어 답변을 2~3문장으로 작성하고, 대화 맥락에 맞는 유용한 관용구를 포함하세요. 영어 답변의 한국어 번역도 제공하세요.',
+                                                advanced: '고급(심화토론) 학습자에게 맞춰 답하세요. 세련된 원어민 어휘와 복합적인 문장 구조를 사용하고, 단순한 문답을 넘어 관점과 근거를 주고받는 심화 토론식의 긴 영어 답변을 작성하세요. 영어 답변의 한국어 번역도 제공하세요.'
+                                        };
+                                        const levelInstruction = levelInstructions[difficultySelect.value];
+                                        const prompt = `당신은 친절한 영어 회화 튜터입니다. ${levelInstruction}
+사용자가 "${text}"라고 말했습니다.
 반드시 아래 JSON 형식으로만 답변해주세요 (다른 설명이나 마크다운 코드블록 없이 순수 JSON만 출력):
 {
-  "correction": "문법 교정 및 더 자연스러운 표현 팁 (한국어)",
-  "reply_en": "이어서 대화를 나누는 자연스러운 영어 답변 1~2문장",
-  "reply_ko": "위 영어 답변의 한국어 번역"
+    "correction": "사용자 문장의 문법 교정 및 더 자연스러운 표현 팁 (한국어)",
+    "reply_en": "선택한 난이도에 맞는 영어 답변",
+    "reply_ko": "영어 답변 아래에 표시할 자연스럽고 친절한 한국어 해석"
 }`;
 
                     // 사용량이 여유로운 gemini-3.5-flash-lite 모델로 변경 적용
